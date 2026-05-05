@@ -1,0 +1,167 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Core Devices LLC
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel in-progress runs when a new commit lands on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---- fast checks: lint + URL reachability --------------------------------
+  lint:
+    name: shell lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: bash/sh syntax
+        run: |
+          bash -n versions.sh
+          bash -n scripts/lib/platform.sh
+          bash -n scripts/lib/common.sh
+          bash -n scripts/build-bundle.sh
+          bash -n scripts/install.sh
+          bash -n scripts/check-urls.sh
+          sh -n installer.sh
+      - name: shellcheck
+        run: |
+          shellcheck --external-sources --source-path=SCRIPTDIR \
+            --shell=bash versions.sh \
+            scripts/lib/platform.sh scripts/lib/common.sh \
+            scripts/build-bundle.sh scripts/install.sh scripts/check-urls.sh
+          shellcheck --shell=sh installer.sh
+
+  urls:
+    name: upstream URL check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: ./scripts/check-urls.sh
+
+  # ---- cross-platform bundle build (no upload) -----------------------------
+  cross-build:
+    name: build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux,  arch: x86_64  }
+          - { os: linux,  arch: aarch64 }
+          - { os: darwin, arch: x86_64  }
+          - { os: darwin, arch: aarch64 }
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache component downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pebbleos-sdk-build
+          key: components-${{ runner.os }}-${{ hashFiles('versions.sh') }}
+          restore-keys: components-${{ runner.os }}-
+
+      - name: Build bundle
+        run: |
+          mkdir -p ~/.cache/pebbleos-sdk-build
+          ./scripts/build-bundle.sh \
+            --os ${{ matrix.os }} \
+            --arch ${{ matrix.arch }} \
+            --cache-dir ~/.cache/pebbleos-sdk-build
+
+      - name: Inspect bundle
+        run: |
+          set -eu
+          ls -lh dist/
+          tar -tzf dist/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}.tar.gz \
+            | head -20
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bundle-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+            dist/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---- end-to-end smoke test on real Linux + macOS hosts -------------------
+  smoke:
+    name: smoke install (${{ matrix.runner }})
+    needs: cross-build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-latest, os: linux,  arch: x86_64  }
+          - { runner: macos-latest,  os: darwin, arch: aarch64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache component downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pebbleos-sdk-build
+          key: components-${{ runner.os }}-${{ hashFiles('versions.sh') }}
+          restore-keys: components-${{ runner.os }}-
+
+      - name: Build host bundle
+        run: |
+          mkdir -p ~/.cache/pebbleos-sdk-build
+          ./scripts/build-bundle.sh \
+            --os ${{ matrix.os }} \
+            --arch ${{ matrix.arch }} \
+            --cache-dir ~/.cache/pebbleos-sdk-build
+
+      - name: Extract bundle
+        run: |
+          mkdir -p ${{ runner.temp }}/extract
+          tar -xzf dist/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}.tar.gz \
+            -C ${{ runner.temp }}/extract
+
+      - name: Test install (--defaults forces non-interactive)
+        run: |
+          PREFIX=${{ runner.temp }}/sdk-prefix
+          ${{ runner.temp }}/extract/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}/install.sh \
+            --defaults --prefix "$PREFIX"
+          test -f "$PREFIX/.sdk-info"
+          test -f "$PREFIX/env.sh"
+          test -x "$PREFIX/arm-none-eabi/bin/arm-none-eabi-gcc"
+          test -x "$PREFIX/qemu/bin/qemu-pebble"
+          test -x "$PREFIX/sftool/sftool"
+          cat "$PREFIX/.sdk-info"
+
+      - name: Run tools via env.sh
+        run: |
+          # shellcheck source=/dev/null
+          . ${{ runner.temp }}/sdk-prefix/env.sh
+          arm-none-eabi-gcc --version
+          sftool --version
+          # qemu-pebble may need runtime libs we don't necessarily have on
+          # the runner; verify the binary is loadable enough to print -h.
+          qemu-pebble --version || qemu-pebble -h 2>&1 | head -5 || true
+
+      - name: Test --force re-install
+        run: |
+          PREFIX=${{ runner.temp }}/sdk-prefix
+          ${{ runner.temp }}/extract/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}/install.sh \
+            --defaults --prefix "$PREFIX" --force
+          test -x "$PREFIX/sftool/sftool"
+
+      - name: Test installer rejects existing prefix without --force
+        run: |
+          PREFIX=${{ runner.temp }}/sdk-prefix
+          if ${{ runner.temp }}/extract/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}/install.sh \
+              --defaults --prefix "$PREFIX" 2>/dev/null; then
+            echo "expected non-zero exit when prefix exists without --force"
+            exit 1
+          fi

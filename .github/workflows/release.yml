@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Core Devices LLC
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)build, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux,  arch: x86_64  }
+          - { os: linux,  arch: aarch64 }
+          - { os: darwin, arch: x86_64  }
+          - { os: darwin, arch: aarch64 }
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache component downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pebbleos-sdk-build
+          key: components-${{ runner.os }}-${{ hashFiles('versions.sh') }}
+          restore-keys: components-${{ runner.os }}-
+
+      - name: Build bundle
+        run: |
+          mkdir -p ~/.cache/pebbleos-sdk-build
+          ./scripts/build-bundle.sh \
+            --os ${{ matrix.os }} \
+            --arch ${{ matrix.arch }} \
+            --cache-dir ~/.cache/pebbleos-sdk-build
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+            dist/pebbleos-sdk-*-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download all bundles
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: bundle-*
+          merge-multiple: true
+
+      - name: Stage installer
+        run: cp installer.sh dist/pebbleos-sdk-installer.sh
+
+      - name: Create / update release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: |
+            dist/pebbleos-sdk-*.tar.gz
+            dist/pebbleos-sdk-*.tar.gz.sha256
+            dist/pebbleos-sdk-installer.sh
+          generate_release_notes: true
