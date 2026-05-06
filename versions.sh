@@ -43,7 +43,7 @@ arm_gnu_toolchain_url() {
 # Asset naming: qemu-pebble-<os>-<arch>.tar.gz where os ∈ {linux, macos}
 # and arch ∈ {x86_64, arm64}. Version is in the tag, not the asset name.
 
-QEMU_VERSION="10.1.5-pebble5"
+QEMU_VERSION="10.1.5-pebble7"
 QEMU_TAG="v${QEMU_VERSION}"
 
 qemu_url() {
