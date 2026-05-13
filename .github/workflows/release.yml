@@ -36,7 +36,6 @@ jobs:
         with:
           path: ~/.cache/pebbleos-sdk-build
           key: components-${{ runner.os }}-${{ hashFiles('versions.sh') }}
-          restore-keys: components-${{ runner.os }}-
 
       - name: Build bundle
         run: |

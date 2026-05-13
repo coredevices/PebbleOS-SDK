@@ -68,20 +68,34 @@ log_info "Building bundle: ${BUNDLE_NAME}"
 # Fetch each component archive (reusing the cache when available).
 # Only `name` and `url_fn` are needed here — `dest_subdir` and `strip`
 # are used by install.sh, not the builder.
+# Cache key is derived from the full URL, not the basename: Pebble QEMU
+# assets reuse the same filename across tags (version lives in the tag,
+# not the asset name), so a basename-keyed cache would serve stale builds
+# after a QEMU bump.
+if command -v shasum >/dev/null 2>&1; then
+    _hash_cmd() { shasum -a 256 | awk '{print $1}'; }
+elif command -v sha256sum >/dev/null 2>&1; then
+    _hash_cmd() { sha256sum | awk '{print $1}'; }
+else
+    die "neither shasum nor sha256sum is available"
+fi
+
 while IFS=: read -r name url_fn _ _; do
     [ -n "${name}" ] || continue
     url="$("${url_fn}" "${OS}" "${ARCH}")" \
         || die "no URL configured for ${name} on ${OS}/${ARCH}"
     filename="$(basename "${url}")"
     out="${BUNDLE_ROOT}/components/${filename}"
-    if [ -n "${CACHE_DIR}" ] && [ -f "${CACHE_DIR}/${filename}" ]; then
-        log_info "Using cached ${name}: ${CACHE_DIR}/${filename}"
-        cp "${CACHE_DIR}/${filename}" "${out}"
+    url_hash="$(printf '%s' "${url}" | _hash_cmd | cut -c1-16)"
+    cache_key="${url_hash}-${filename}"
+    if [ -n "${CACHE_DIR}" ] && [ -f "${CACHE_DIR}/${cache_key}" ]; then
+        log_info "Using cached ${name}: ${CACHE_DIR}/${cache_key}"
+        cp "${CACHE_DIR}/${cache_key}" "${out}"
     else
         log_info "Downloading ${name}: ${url}"
         download_to "${url}" "${out}"
         if [ -n "${CACHE_DIR}" ]; then
-            cp "${out}" "${CACHE_DIR}/${filename}"
+            cp "${out}" "${CACHE_DIR}/${cache_key}"
         fi
     fi
     log_ok "ready $(basename "${out}") ($(wc -c < "${out}" | awk '{print $1}') bytes)"
