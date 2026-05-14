@@ -13,7 +13,7 @@
 
 # ---- SDK -------------------------------------------------------------------
 
-SDK_VERSION="${SDK_VERSION:-0.1.4}"
+SDK_VERSION="${SDK_VERSION:-0.1.5}"
 
 # GitHub repo where bundles + installer are published.
 SDK_REPO="${SDK_REPO:-coredevices/PebbleOS-SDK}"
