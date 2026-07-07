@@ -17,8 +17,38 @@ permissions:
   contents: write
 
 jobs:
+  picolibc:
+    name: build picolibc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends meson ninja-build
+
+      - name: Cache picolibc build
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pebbleos-sdk-picolibc
+          key: picolibc-${{ hashFiles('versions.sh', 'scripts/build-picolibc.sh', 'patches/picolibc/**') }}
+          restore-keys: picolibc-
+
+      - name: Build overlay
+        run: |
+          mkdir -p ~/.cache/pebbleos-sdk-picolibc
+          ./scripts/build-picolibc.sh --cache-dir ~/.cache/pebbleos-sdk-picolibc
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: picolibc
+          path: dist/picolibc-*.tar.gz
+          if-no-files-found: error
+
   build:
     name: build ${{ matrix.os }}-${{ matrix.arch }}
+    needs: picolibc
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -37,13 +67,20 @@ jobs:
           path: ~/.cache/pebbleos-sdk-build
           key: components-${{ runner.os }}-${{ hashFiles('versions.sh') }}
 
+      - name: Download picolibc overlay
+        uses: actions/download-artifact@v8
+        with:
+          name: picolibc
+          path: picolibc-dist
+
       - name: Build bundle
         run: |
           mkdir -p ~/.cache/pebbleos-sdk-build
           ./scripts/build-bundle.sh \
             --os ${{ matrix.os }} \
             --arch ${{ matrix.arch }} \
-            --cache-dir ~/.cache/pebbleos-sdk-build
+            --cache-dir ~/.cache/pebbleos-sdk-build \
+            --picolibc picolibc-dist/picolibc-*.tar.gz
 
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v7

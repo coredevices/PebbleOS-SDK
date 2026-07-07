@@ -87,8 +87,10 @@ if [ -e "${PREFIX}" ]; then
 fi
 mkdir -p "${PREFIX}"
 
-# Extract each component.
-while IFS=: read -r name url_fn dest_subdir strip; do
+# Extract each component. `overlay` components extract on top of a
+# previously installed one (e.g. picolibc into the ARM toolchain sysroot),
+# so they must not wipe the destination.
+while IFS=: read -r name url_fn dest_subdir strip mode; do
     [ -n "${name}" ] || continue
     url="$("${url_fn}" "${BUNDLE_OS}" "${BUNDLE_ARCH}")" \
         || die "no URL configured for ${name} on ${BUNDLE_OS}/${BUNDLE_ARCH}"
@@ -96,7 +98,11 @@ while IFS=: read -r name url_fn dest_subdir strip; do
     [ -f "${archive}" ] || die "missing bundled archive: ${archive}"
     dest="${PREFIX}/${dest_subdir}"
     log_info "Installing ${name} -> ${dest}"
-    rm -rf "${dest}"
+    if [ "${mode}" = "overlay" ]; then
+        [ -d "${dest}" ] || die "overlay ${name} requires ${dest_subdir} to be installed first"
+    else
+        rm -rf "${dest}"
+    fi
     extract_archive "${archive}" "${dest}" "${strip}"
     # Some upstream archives ship without the executable bit set on
     # release binaries (notably the QEMU asset). Ensure anything under a
@@ -128,6 +134,7 @@ sdk_version=${BUNDLE_SDK_VERSION}
 os=${BUNDLE_OS}
 arch=${BUNDLE_ARCH}
 arm_gnu_toolchain_version=${ARM_GNU_TOOLCHAIN_VERSION}
+picolibc_version=${PICOLIBC_VERSION}
 qemu_version=${QEMU_VERSION}
 sftool_version=${SFTOOL_VERSION}
 installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)

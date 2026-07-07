@@ -29,6 +29,7 @@ jobs:
           bash -n scripts/lib/platform.sh
           bash -n scripts/lib/common.sh
           bash -n scripts/build-bundle.sh
+          bash -n scripts/build-picolibc.sh
           bash -n scripts/install.sh
           bash -n scripts/check-urls.sh
           sh -n installer.sh
@@ -37,7 +38,8 @@ jobs:
           shellcheck --external-sources --source-path=SCRIPTDIR \
             --shell=bash versions.sh \
             scripts/lib/platform.sh scripts/lib/common.sh \
-            scripts/build-bundle.sh scripts/install.sh scripts/check-urls.sh
+            scripts/build-bundle.sh scripts/build-picolibc.sh \
+            scripts/install.sh scripts/check-urls.sh
           shellcheck --shell=sh installer.sh
 
   urls:
@@ -47,9 +49,46 @@ jobs:
       - uses: actions/checkout@v6
       - run: ./scripts/check-urls.sh
 
+  # ---- picolibc toolchain overlay (host-independent, built once) -----------
+  # Compiled from source once per run and shared with every bundle job via
+  # artifact; the same archive ends up inside all platform bundles.
+  picolibc:
+    name: build picolibc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends meson ninja-build
+
+      # The cached overlay inside this dir is keyed by picolibc version,
+      # toolchain version, and pinned commit (see build-picolibc.sh), so a
+      # cache-warm run skips the ~15 min multilib build entirely.
+      - name: Cache picolibc build
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pebbleos-sdk-picolibc
+          key: picolibc-${{ hashFiles('versions.sh', 'scripts/build-picolibc.sh', 'patches/picolibc/**') }}
+          restore-keys: picolibc-
+
+      - name: Build overlay
+        run: |
+          mkdir -p ~/.cache/pebbleos-sdk-picolibc
+          ./scripts/build-picolibc.sh --cache-dir ~/.cache/pebbleos-sdk-picolibc
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: picolibc
+          path: dist/picolibc-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
   # ---- cross-platform bundle build (no upload) -----------------------------
   cross-build:
     name: build ${{ matrix.os }}-${{ matrix.arch }}
+    needs: picolibc
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,13 +108,20 @@ jobs:
           key: components-${{ runner.os }}-${{ hashFiles('versions.sh') }}
           restore-keys: components-${{ runner.os }}-
 
+      - name: Download picolibc overlay
+        uses: actions/download-artifact@v8
+        with:
+          name: picolibc
+          path: picolibc-dist
+
       - name: Build bundle
         run: |
           mkdir -p ~/.cache/pebbleos-sdk-build
           ./scripts/build-bundle.sh \
             --os ${{ matrix.os }} \
             --arch ${{ matrix.arch }} \
-            --cache-dir ~/.cache/pebbleos-sdk-build
+            --cache-dir ~/.cache/pebbleos-sdk-build \
+            --picolibc picolibc-dist/picolibc-*.tar.gz
 
       - name: Inspect bundle
         run: |
@@ -96,7 +142,7 @@ jobs:
   # ---- end-to-end smoke test on real Linux + macOS hosts -------------------
   smoke:
     name: smoke install (${{ matrix.runner }})
-    needs: cross-build
+    needs: [picolibc, cross-build]
     strategy:
       fail-fast: false
       matrix:
@@ -114,13 +160,20 @@ jobs:
           key: components-${{ runner.os }}-${{ hashFiles('versions.sh') }}
           restore-keys: components-${{ runner.os }}-
 
+      - name: Download picolibc overlay
+        uses: actions/download-artifact@v8
+        with:
+          name: picolibc
+          path: picolibc-dist
+
       - name: Build host bundle
         run: |
           mkdir -p ~/.cache/pebbleos-sdk-build
           ./scripts/build-bundle.sh \
             --os ${{ matrix.os }} \
             --arch ${{ matrix.arch }} \
-            --cache-dir ~/.cache/pebbleos-sdk-build
+            --cache-dir ~/.cache/pebbleos-sdk-build \
+            --picolibc picolibc-dist/picolibc-*.tar.gz
 
       - name: Extract bundle
         run: |
@@ -136,6 +189,7 @@ jobs:
           test -f "$PREFIX/.sdk-info"
           test -f "$PREFIX/env.sh"
           test -x "$PREFIX/arm-none-eabi/bin/arm-none-eabi-gcc"
+          find "$PREFIX/arm-none-eabi/lib/gcc" -name picolibc.specs | grep -q .
           test -x "$PREFIX/qemu/bin/qemu-pebble"
           test -x "$PREFIX/sftool/sftool"
           cat "$PREFIX/.sdk-info"

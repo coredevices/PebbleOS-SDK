@@ -36,6 +36,51 @@ download_to() {
     fi
 }
 
+# sha256_stdin — print the sha256 hex digest of stdin.
+sha256_stdin() {
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 | awk '{print $1}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+        sha256sum | awk '{print $1}'
+    else
+        die "neither shasum nor sha256sum is available"
+    fi
+}
+
+# write_sha256 <dir> <filename> — write <filename>.sha256 next to the file,
+# in the `shasum`/`sha256sum` text format (relative filename).
+write_sha256() {
+    local dir="$1" filename="$2"
+    if command -v shasum >/dev/null 2>&1; then
+        (cd "${dir}" && shasum -a 256 "${filename}" > "${filename}.sha256")
+    elif command -v sha256sum >/dev/null 2>&1; then
+        (cd "${dir}" && sha256sum "${filename}" > "${filename}.sha256")
+    else
+        die "neither shasum nor sha256sum is available"
+    fi
+}
+
+# download_cached <url> <dest> [cache_dir]
+# download_to with an optional archive cache. The cache key is derived from
+# the full URL, not the basename: some upstream assets (notably Pebble QEMU)
+# reuse the same filename across versions, so a basename-keyed cache would
+# serve stale files after a bump.
+download_cached() {
+    local url="$1" dest="$2" cache_dir="${3:-}"
+    local cache_key
+    cache_key="$(printf '%s' "${url}" | sha256_stdin | cut -c1-16)-$(basename "${url}")"
+    if [ -n "${cache_dir}" ] && [ -f "${cache_dir}/${cache_key}" ]; then
+        log_info "Using cached $(basename "${dest}"): ${cache_dir}/${cache_key}"
+        cp "${cache_dir}/${cache_key}" "${dest}"
+    else
+        log_info "Downloading ${url}"
+        download_to "${url}" "${dest}"
+        if [ -n "${cache_dir}" ]; then
+            cp "${dest}" "${cache_dir}/${cache_key}"
+        fi
+    fi
+}
+
 # extract_archive <archive> <dest_dir> [strip_components]
 # Auto-detects format from extension; defaults to 1 stripped component.
 extract_archive() {

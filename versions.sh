@@ -38,6 +38,27 @@ arm_gnu_toolchain_url() {
     printf '%s/arm-gnu-toolchain-%s-%s-arm-none-eabi.tar.xz\n' "${base}" "${v}" "${host}"
 }
 
+# ---- picolibc --------------------------------------------------------------
+# Not downloaded: scripts/build-picolibc.sh compiles picolibc from upstream
+# source at PICOLIBC_COMMIT (plus patches/picolibc/) during the bundle
+# build, and the result is packed into the SDK bundle like any other
+# component. Target (arm-none-eabi) code only, so every host platform
+# bundles the same archive; its name embeds the ARM toolchain version it
+# was built against.
+
+# <upstream release>-pebble<n>; bump the -pebble suffix when the pinned
+# commit, patches, or build options change.
+PICOLIBC_VERSION="1.8.11-pebble1"
+# Upstream commit the build pins (1.8.11 plus upstream fixes; the revision
+# PebbleOS builds against).
+# shellcheck disable=SC2034 # consumed by scripts/build-picolibc.sh
+PICOLIBC_COMMIT="2cb62b35aaf461e730860cb7ecc31c51b9848d78"
+
+picolibc_archive() {
+    # (os, arch) args accepted for manifest-loop symmetry; host-independent.
+    printf 'picolibc-%s-%s.tar.gz\n' "${PICOLIBC_VERSION}" "${ARM_GNU_TOOLCHAIN_VERSION}"
+}
+
 # ---- Pebble QEMU -----------------------------------------------------------
 # https://github.com/coredevices/qemu/releases
 # Asset naming: qemu-pebble-<os>-<arch>.tar.gz where os ∈ {linux, macos}
@@ -88,17 +109,29 @@ sftool_url() {
 
 # ---- Component manifest ----------------------------------------------------
 #
-# Each entry: <name>:<url-fn>:<dest-subdir>:<strip-components>
+# Each entry: <name>:<url-fn>:<dest-subdir>:<strip-components>[:<mode>]
 # - name:             component identifier
-# - url-fn:           shell function returning the download URL given (os, arch)
+# - url-fn:           shell function returning the download URL given (os, arch);
+#                     picolibc is compiled rather than downloaded, so its
+#                     function returns the bare archive name (the installer
+#                     only needs the basename)
 # - dest-subdir:      install path under the SDK prefix
 # - strip-components: argument passed to `tar --strip-components` (per-archive
 #                     layout: ARM toolchain wraps everything in a versioned
 #                     directory, QEMU has `./bin/...`, sftool is a bare binary)
+# - mode:             empty for a fresh install into dest-subdir; `overlay` to
+#                     extract on top of an already-installed component (order
+#                     matters: an overlay must follow the entry it extends)
+#
+# picolibc overlays the ARM toolchain: picolibc.specs installs next to libgcc
+# (lib/gcc/arm-none-eabi/<ver>/) and the headers/libs under the
+# arm-none-eabi/picolibc/ sysroot subtree, so that
+# `arm-none-eabi-gcc -specs=picolibc.specs` works out of the box.
 
 sdk_components() {
     cat <<'EOF'
 arm-none-eabi:arm_gnu_toolchain_url:arm-none-eabi:1
+picolibc:picolibc_archive:arm-none-eabi:1:overlay
 qemu:qemu_url:qemu:1
 sftool:sftool_url:sftool:0
 EOF
