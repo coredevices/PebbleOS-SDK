@@ -1,0 +1,25 @@
+SPDX-License-Identifier: Apache-2.0
+SPDX-FileCopyrightText: 2026 Core Devices LLC
+
+Default time_t to 32-bit (long).
+
+Upstream picolibc hardcodes 64-bit __time_t. PebbleOS keeps time_t
+32-bit to match its RTC/storage ABI and %ld time format strings, and
+firmware builds compile against these installed headers as-is (no extra
+-include override), so the type must be changed in the headers
+themselves.
+
+--- a/libc/include/machine/_types.h
++++ b/libc/include/machine/_types.h
+@@ -5,4 +5,11 @@
+ #ifndef _MACHINE__TYPES_H
+ #define _MACHINE__TYPES_H
+ #include <machine/_default_types.h>
++
++/* PebbleOS: 32-bit time_t to match the firmware RTC/storage ABI and its
++ * %ld time format strings (upstream defaults to 64-bit). */
++#ifndef __machine_time_t_defined
++#define __machine_time_t_defined
++typedef long __time_t;
++#endif
+ #endif
