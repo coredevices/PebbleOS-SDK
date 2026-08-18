@@ -153,6 +153,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install qemu runtime dependencies (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          # The Linux qemu bundle deliberately ships no shared libraries —
+          # users install them via their package manager. Mirror that here
+          # so the strict check below tests the supported setup.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libsdl2-dev libpixman-1-dev libglib2.0-dev libpng-dev \
+            zlib1g-dev libasound2-dev libpulse-dev
+
       - name: Cache component downloads
         uses: actions/cache@v5
         with:
@@ -200,9 +211,14 @@ jobs:
           . ${{ runner.temp }}/sdk-prefix/env.sh
           arm-none-eabi-gcc --version
           sftool --version
-          # qemu-pebble may need runtime libs we don't necessarily have on
-          # the runner; verify the binary is loadable enough to print -h.
-          qemu-pebble --version || qemu-pebble -h 2>&1 | head -5 || true
+          # macOS bundles qemu's runtime libs; Linux relies on system
+          # packages (installed above). Either way --version must succeed
+          # — a permissive check here once hid broken bundles. The alarm
+          # caps a hung startup (macOS modal error dialog) and DYLD_* is
+          # set inside perl: exec'ing the SIP-protected perl strips it.
+          perl -e '$ENV{DYLD_FALLBACK_LIBRARY_PATH} = "/var/empty";
+                   alarm 120; exec @ARGV or die "exec: $!"' \
+            qemu-pebble --version
 
       - name: Test --force re-install
         run: |
