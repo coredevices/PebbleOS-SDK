@@ -41,6 +41,19 @@ curl -LsSf https://github.com/coredevices/PebbleOS-SDK/releases/latest/download/
 
 By default the SDK installs at `~/pebbleos-sdk-<version>`.
 
+### Runtime dependencies (Linux)
+
+The bundles are self-contained except for Pebble QEMU on Linux, which
+uses the system's shared libraries. Install them via your package
+manager, e.g. on Debian/Ubuntu:
+
+```sh
+sudo apt install libsdl2-2.0-0 libpixman-1-0 libglib2.0-0 libpng16-16 \
+                 zlib1g libasound2 libpulse0
+```
+
+On macOS these libraries ship inside the SDK.
+
 After install, activate the SDK in your shell:
 
 ```sh
