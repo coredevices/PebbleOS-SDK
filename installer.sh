@@ -100,6 +100,8 @@ case "$(uname -m)" in
     *) die "unsupported architecture: $(uname -m)" ;;
 esac
 
+[ "${OS}/${ARCH}" = darwin/x86_64 ] && die "macOS on Intel (x86_64) is not supported"
+
 info "Detected ${OS}/${ARCH}"
 
 # ---- prerequisites ---------------------------------------------------------

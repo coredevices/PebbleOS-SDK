@@ -20,7 +20,6 @@ require_cmd curl
 PLATFORMS=(
     "linux x86_64"
     "linux aarch64"
-    "darwin x86_64"
     "darwin aarch64"
 )
 URL_FNS=(arm_gnu_toolchain_url qemu_url sftool_url)

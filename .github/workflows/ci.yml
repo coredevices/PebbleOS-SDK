@@ -96,7 +96,6 @@ jobs:
         include:
           - { os: linux,  arch: x86_64  }
           - { os: linux,  arch: aarch64 }
-          - { os: darwin, arch: x86_64  }
           - { os: darwin, arch: aarch64 }
     steps:
       - uses: actions/checkout@v6
