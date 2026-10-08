@@ -56,6 +56,7 @@ OS="${OS:-$(detect_os)}"
 ARCH="${ARCH:-$(detect_arch)}"
 case "${OS}" in linux|darwin) ;; *) die "unsupported os: ${OS}" ;; esac
 case "${ARCH}" in x86_64|aarch64) ;; *) die "unsupported arch: ${ARCH}" ;; esac
+[ "${OS}/${ARCH}" = darwin/x86_64 ] && die "unsupported platform: darwin/x86_64"
 
 require_cmd tar
 # The picolibc compile happens after the (large) downloads; fail on its

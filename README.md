@@ -15,7 +15,7 @@ build, run, and flash PebbleOS targets:
 | Pebble QEMU       | Emulator for PebbleOS targets            | https://github.com/coredevices/qemu/releases                           |
 | sftool            | SiFli flashing utility                   | https://github.com/OpenSiFli/sftool/releases                           |
 
-Supported hosts: Linux (x86_64, aarch64) and macOS (x86_64, aarch64).
+Supported hosts: Linux (x86_64, aarch64) and macOS (aarch64).
 
 ## Install
 

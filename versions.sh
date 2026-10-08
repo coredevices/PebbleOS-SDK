@@ -8,8 +8,7 @@
 # pick them up automatically. Each tool exposes a `<tool>_url <os> <arch>`
 # function returning the download URL for the requested host platform.
 #
-# Supported (os, arch) tuples: linux/x86_64, linux/aarch64,
-# darwin/x86_64, darwin/aarch64.
+# Supported (os, arch) tuples: linux/x86_64, linux/aarch64, darwin/aarch64.
 
 # ---- SDK -------------------------------------------------------------------
 
@@ -31,7 +30,6 @@ arm_gnu_toolchain_url() {
     case "${os}/${arch}" in
         linux/x86_64)   host="x86_64" ;;
         linux/aarch64)  host="aarch64" ;;
-        darwin/x86_64)  host="darwin-x86_64" ;;
         darwin/aarch64) host="darwin-arm64" ;;
         *) return 1 ;;
     esac
@@ -100,7 +98,6 @@ sftool_url() {
     case "${os}/${arch}" in
         linux/x86_64)   triple="x86_64-unknown-linux-gnu" ;;
         linux/aarch64)  triple="aarch64-unknown-linux-gnu" ;;
-        darwin/x86_64)  triple="x86_64-apple-darwin" ;;
         darwin/aarch64) triple="aarch64-apple-darwin" ;;
         *) return 1 ;;
     esac
