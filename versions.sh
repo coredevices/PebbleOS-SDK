@@ -46,7 +46,7 @@ arm_gnu_toolchain_url() {
 
 # <upstream release>-pebble<n>; bump the -pebble suffix when the pinned
 # commit, patches, or build options change.
-PICOLIBC_VERSION="1.8.11-pebble1"
+PICOLIBC_VERSION="1.8.11-pebble2"
 # Upstream commit the build pins (1.8.11 plus upstream fixes; the revision
 # PebbleOS builds against).
 # shellcheck disable=SC2034 # consumed by scripts/build-picolibc.sh

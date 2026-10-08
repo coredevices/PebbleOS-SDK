@@ -181,7 +181,7 @@ BUILD_DIR="${WORK_DIR}/build"
 log_info "Configuring picolibc"
 meson setup "${BUILD_DIR}" "${SRC_DIR}" \
     --cross-file "${CROSS_FILE}" \
-    --buildtype release \
+    --buildtype minsize \
     --prefix "${SYSROOT}" \
     -Dincludedir=picolibc/arm-none-eabi/include \
     -Dlibdir=picolibc/arm-none-eabi/lib \
