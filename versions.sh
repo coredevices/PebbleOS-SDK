@@ -20,7 +20,7 @@ SDK_REPO="${SDK_REPO:-coredevices/PebbleOS-SDK}"
 # ---- ARM GNU Toolchain (arm-none-eabi) -------------------------------------
 # https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
 
-ARM_GNU_TOOLCHAIN_VERSION="14.2.rel1"
+ARM_GNU_TOOLCHAIN_VERSION="15.2.rel1"
 
 arm_gnu_toolchain_url() {
     local os="$1" arch="$2"
