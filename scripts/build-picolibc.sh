@@ -189,7 +189,8 @@ meson setup "${BUILD_DIR}" "${SRC_DIR}" \
     -Dtests=false \
     -Dio-long-long=true \
     -Dformat-default=long-long \
-    -Dthread-local-storage=false
+    -Dthread-local-storage=false \
+    -Dfast-memfuncs=true
 
 log_info "Building picolibc (all multilibs — this takes a while)"
 ninja -C "${BUILD_DIR}"
