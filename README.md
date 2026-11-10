@@ -104,7 +104,8 @@ during the bundle build by `scripts/build-picolibc.sh` from upstream
 source at `PICOLIBC_COMMIT` (the revision PebbleOS builds against),
 patched with `patches/picolibc/`, for every toolchain multilib with the
 PebbleOS firmware ABI (C99 + long-long formatted I/O, no TLS, 32-bit
-`time_t`), and packed into the SDK bundle like any other component. Being
+`time_t`), optimized for size except for `memcpy`, `memmove` and
+`memset`, and packed into the SDK bundle like any other component. Being
 target-only code, the same archive is embedded in every platform bundle.
 
 To update: bump `PICOLIBC_COMMIT` and/or the patches, and bump the
