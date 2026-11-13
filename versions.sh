@@ -88,7 +88,7 @@ qemu_url() {
 # sftool-<version>-<rust-triple>.tar.xz. Archive contains a single bare
 # `sftool` binary at the root (no top-level directory).
 
-SFTOOL_VERSION="0.2.2"
+SFTOOL_VERSION="0.2.5"
 SFTOOL_TAG="${SFTOOL_VERSION}"
 
 sftool_url() {
